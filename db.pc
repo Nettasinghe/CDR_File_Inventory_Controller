@@ -1,0 +1,88 @@
+#include "db.h"
+#include "Token.h"
+
+#include <sqlca.h>
+#include <stdio.h>
+#include <fstream.h>
+#include <iostream>
+using namespace std;
+
+extern ofstream f_Error;
+extern token run_ticket;
+extern char zTime[30];
+
+void SqlError(char *msg)
+{
+    EXEC SQL WHENEVER SQLERROR CONTINUE;
+    f_Error << endl << msg << flush;
+    f_Error << sqlca.sqlerrm.sqlerrmc << endl << flush;
+    f_Error << "EXIT because of SQL Error!!! - " << zTime << endl;
+    run_ticket.set_token(T_OFF);    // release lock
+    exit(0);
+}
+
+void db_connect(char* zLogin)
+{
+	EXEC SQL BEGIN DECLARE SECTION ;
+            char* z_login;
+        EXEC SQL END DECLARE SECTION ;
+
+	z_login = zLogin;
+
+
+        EXEC SQL WHENEVER SQLERROR DO SqlError("ORACLE error:") ;
+ 
+        EXEC SQL CONNECT :z_login;
+ 
+
+}
+
+void db_disconnect()
+{
+	EXEC SQL COMMIT WORK RELEASE ;
+}
+
+int  db_get_seq_no(char* _zTableName)
+{
+	EXEC SQL BEGIN DECLARE SECTION;
+ 		int iSeqNo;
+		short iSeqNo_IND;
+		char* zTableName;
+		char zQuery[100]; 
+ 	EXEC SQL END DECLARE SECTION;
+
+	iSeqNo = 0;
+	zTableName = _zTableName;
+
+	sprintf(zQuery, "SELECT MAX(CDR_FILE_ID_NO) FROM %s", zTableName);
+
+	EXEC SQL PREPARE query FROM :zQuery;
+	EXEC SQL DECLARE cursor CURSOR FOR query;
+	EXEC SQL OPEN cursor;
+
+	EXEC SQL FETCH cursor INTO :iSeqNo INDICATOR :iSeqNo_IND;
+
+	EXEC SQL CLOSE cursor;
+
+ 	return iSeqNo;
+}
+
+void db_insert_file(char* _zTableName, char* _zFileName,int _iFileID)
+{
+	EXEC SQL BEGIN DECLARE SECTION;
+		int iFileID;
+		char* zTableName;
+		char zFileName[101] ;
+		char zQuery[200];
+	EXEC SQL END DECLARE SECTION;
+
+	iFileID = _iFileID ;
+	zTableName = _zTableName;
+	strcpy(zFileName,_zFileName) ;
+
+	sprintf(zQuery,"INSERT INTO %s (FILE_NAME, CDR_FILE_ID_NO, TRANSFER_DATE) VALUES ('%s', %d, SYSDATE)",zTableName, zFileName, iFileID);
+	
+	EXEC SQL EXECUTE IMMEDIATE :zQuery;
+
+	EXEC SQL COMMIT;
+}
